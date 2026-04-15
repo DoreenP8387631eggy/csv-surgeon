@@ -1,105 +1,123 @@
-"""CLI entry point for csv-surgeon."""
+"""Command-line interface for csv-surgeon."""
+
+from __future__ import annotations
 
 import argparse
 import sys
-from typing import List
 
-from csv_surgeon.aggregator import count, sum_column, min_column, max_column, average_column
-from csv_surgeon.filters import equals, not_equals, contains, greater_than, less_than
-from csv_surgeon.joiner import inner_join, left_join
+from csv_surgeon.filters import (
+    equals, not_equals, contains, greater_than, less_than,
+)
 from csv_surgeon.pipeline import FilterPipeline
 from csv_surgeon.reader import StreamingCSVReader
 from csv_surgeon.writer import StreamingCSVWriter
+from csv_surgeon.aggregator import count, sum_column, min_column, max_column, average_column
+from csv_surgeon.joiner import inner_join, left_join
+from csv_surgeon.sorter import sort_rows, sort_rows_multi
 
 
-def build_filter_pipeline(filter_args: List[str]) -> FilterPipeline:
+def build_filter_pipeline(args) -> FilterPipeline:
     pipeline = FilterPipeline()
-    for f in filter_args or []:
-        col, op, val = f.split(":", 2)
-        if op == "eq":
-            pipeline.add_filter(equals(col, val))
-        elif op == "ne":
-            pipeline.add_filter(not_equals(col, val))
-        elif op == "contains":
-            pipeline.add_filter(contains(col, val))
-        elif op == "gt":
-            pipeline.add_filter(greater_than(col, float(val)))
-        elif op == "lt":
-            pipeline.add_filter(less_than(col, float(val)))
-        else:
-            raise ValueError(f"Unknown filter operator: {op}")
+    for raw in getattr(args, "filter", []) or []:
+        col, op, val = raw.split(":", 2)
+        dispatch = {
+            "eq": equals, "ne": not_equals,
+            "contains": contains, "gt": greater_than, "lt": less_than,
+        }
+        if op not in dispatch:
+            raise ValueError(f"Unknown filter op: {op}")
+        pipeline.add_filter(dispatch[op](col, val))
     return pipeline
 
 
-def cmd_filter(args: argparse.Namespace) -> None:
-    pipeline = build_filter_pipeline(args.filter)
+def cmd_filter(args) -> None:
+    pipeline = build_filter_pipeline(args)
     reader = StreamingCSVReader(args.input)
     writer = StreamingCSVWriter(args.output)
     rows = pipeline.apply(reader.iter_rows())
     writer.write_rows(rows, headers=reader.headers)
-    print(f"Wrote {writer.rows_written} rows.", file=sys.stderr)
 
 
-def cmd_aggregate(args: argparse.Namespace) -> None:
+def cmd_aggregate(args) -> None:
     reader = StreamingCSVReader(args.input)
     rows = list(reader.iter_rows())
-    op = args.operation
-    col = args.column
-    if op == "count":
-        result = count(rows, col if col else None)
-    elif op == "sum":
-        result = sum_column(rows, col)
-    elif op == "min":
-        result = min_column(rows, col)
-    elif op == "max":
-        result = max_column(rows, col)
-    elif op == "avg":
-        result = average_column(rows, col)
-    else:
-        print(f"Unknown operation: {op}", file=sys.stderr)
-        sys.exit(1)
+    fn_map = {
+        "count": lambda: count(rows, args.column or None),
+        "sum": lambda: sum_column(rows, args.column),
+        "min": lambda: min_column(rows, args.column),
+        "max": lambda: max_column(rows, args.column),
+        "avg": lambda: average_column(rows, args.column),
+    }
+    result = fn_map[args.func]()
     print(result)
 
 
-def cmd_join(args: argparse.Namespace) -> None:
+def cmd_join(args) -> None:
     left_reader = StreamingCSVReader(args.left)
     right_reader = StreamingCSVReader(args.right)
+    left_rows = list(left_reader.iter_rows())
     right_rows = list(right_reader.iter_rows())
-    join_fn = inner_join if args.join_type == "inner" else left_join
-    merged = join_fn(
-        left_reader.iter_rows(),
-        right_rows,
-        left_key=args.left_key,
-        right_key=args.right_key or args.left_key,
-        right_prefix=args.right_prefix,
-    )
+    join_fn = inner_join if args.type == "inner" else left_join
+    result = join_fn(left_rows, right_rows, args.key)
+    if result:
+        writer = StreamingCSVWriter(args.output)
+        writer.write_rows(iter(result), headers=list(result[0].keys()))
+
+
+def cmd_sort(args) -> None:
+    reader = StreamingCSVReader(args.input)
+    rows = reader.iter_rows()
+    if args.keys:
+        key_specs = []
+        for spec in args.keys:
+            parts = spec.split(":")
+            col = parts[0]
+            rev = len(parts) > 1 and parts[1].lower() == "desc"
+            key_specs.append((col, rev))
+        sorted_rows = sort_rows_multi(rows, keys=key_specs, numeric=args.numeric)
+    else:
+        sorted_rows = sort_rows(
+            rows, key=args.key, reverse=args.reverse, numeric=args.numeric
+        )
     writer = StreamingCSVWriter(args.output)
-    writer.write_rows(merged)
-    print(f"Wrote {writer.rows_written} rows.", file=sys.stderr)
+    writer.write_rows(sorted_rows, headers=reader.headers)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="csv-surgeon", description="CSV transformation tool")
+    parser = argparse.ArgumentParser(prog="csv-surgeon")
     sub = parser.add_subparsers(dest="command")
 
-    f_parser = sub.add_parser("filter", help="Filter rows")
-    f_parser.add_argument("input", help="Input CSV file")
-    f_parser.add_argument("output", help="Output CSV file")
-    f_parser.add_argument("--filter", action="append", metavar="COL:OP:VAL")
+    # filter
+    p_filter = sub.add_parser("filter")
+    p_filter.add_argument("input")
+    p_filter.add_argument("output")
+    p_filter.add_argument("--filter", action="append")
 
-    a_parser = sub.add_parser("aggregate", help="Aggregate a column")
-    a_parser.add_argument("input", help="Input CSV file")
-    a_parser.add_argument("operation", choices=["count", "sum", "min", "max", "avg"])
-    a_parser.add_argument("--column", default=None)
+    # aggregate
+    p_agg = sub.add_parser("aggregate")
+    p_agg.add_argument("input")
+    p_agg.add_argument("func", choices=["count", "sum", "min", "max", "avg"])
+    p_agg.add_argument("--column")
 
-    j_parser = sub.add_parser("join", help="Join two CSV files")
-    j_parser.add_argument("left", help="Left CSV file")
-    j_parser.add_argument("right", help="Right CSV file")
-    j_parser.add_argument("output", help="Output CSV file")
-    j_parser.add_argument("--left-key", required=True, dest="left_key")
-    j_parser.add_argument("--right-key", default=None, dest="right_key")
-    j_parser.add_argument("--join-type", choices=["inner", "left"], default="inner", dest="join_type")
-    j_parser.add_argument("--right-prefix", default="right_", dest="right_prefix")
+    # join
+    p_join = sub.add_parser("join")
+    p_join.add_argument("left")
+    p_join.add_argument("right")
+    p_join.add_argument("output")
+    p_join.add_argument("--key", required=True)
+    p_join.add_argument("--type", choices=["inner", "left"], default="inner")
+
+    # sort
+    p_sort = sub.add_parser("sort")
+    p_sort.add_argument("input")
+    p_sort.add_argument("output")
+    p_sort.add_argument("--key", default="", help="Single column to sort by")
+    p_sort.add_argument(
+        "--keys", nargs="+",
+        help="Multi-column sort specs: col[:asc|desc] ..."
+    )
+    p_sort.add_argument("--reverse", action="store_true")
+    p_sort.add_argument("--numeric", action="store_true")
 
     return parser
 
@@ -107,15 +125,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    if args.command == "filter":
-        cmd_filter(args)
-    elif args.command == "aggregate":
-        cmd_aggregate(args)
-    elif args.command == "join":
-        cmd_join(args)
-    else:
+    dispatch = {
+        "filter": cmd_filter,
+        "aggregate": cmd_aggregate,
+        "join": cmd_join,
+        "sort": cmd_sort,
+    }
+    if args.command not in dispatch:
         parser.print_help()
         sys.exit(1)
+    dispatch[args.command](args)
 
 
 if __name__ == "__main__":
