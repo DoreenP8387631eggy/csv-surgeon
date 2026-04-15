@@ -19,6 +19,9 @@ def sample_random(rows: Iterator[dict], n: int, seed: Optional[int] = None) -> L
 
     Memory-efficient: only holds n rows at a time regardless of input size.
     """
+    if n < 1:
+        raise ValueError("n must be >= 1")
+
     rng = random.Random(seed)
     reservoir: List[dict] = []
 
