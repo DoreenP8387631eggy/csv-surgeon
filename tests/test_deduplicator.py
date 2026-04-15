@@ -57,6 +57,16 @@ def test_deduplicate_no_duplicates(sample_rows):
     assert len(result) == 3
 
 
+def test_deduplicate_invalid_key_column_raises():
+    """deduplicate should raise KeyError when a key_column is not present in a row."""
+    rows = [
+        {"id": "1", "name": "Alice"},
+        {"id": "2", "name": "Bob"},
+    ]
+    with pytest.raises(KeyError):
+        list(deduplicate(rows, key_columns=["nonexistent"]))
+
+
 def test_deduplicate_sorted_consecutive_only():
     rows = [
         {"id": "1", "val": "a"},
