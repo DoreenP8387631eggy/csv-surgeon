@@ -87,3 +87,17 @@ def test_custom_delimiter(tmp_path):
     rows = list(reader.iter_rows())
     assert rows[0]["name"] == "Dave"
     assert rows[0]["age"] == "40"
+
+
+def test_file_not_found_raises_error():
+    """Opening a non-existent file should raise FileNotFoundError."""
+    reader = StreamingCSVReader("/nonexistent/path/file.csv")
+    with pytest.raises(FileNotFoundError):
+        list(reader.iter_rows())
+
+
+def test_peek_headers_on_missing_file_raises_error():
+    """peek_headers on a non-existent file should raise FileNotFoundError."""
+    reader = StreamingCSVReader("/nonexistent/path/file.csv")
+    with pytest.raises(FileNotFoundError):
+        reader.peek_headers()
