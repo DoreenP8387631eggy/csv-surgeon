@@ -48,10 +48,22 @@ def test_split_by_count_invalid_chunk_size(sample_rows):
         list(split_by_count(iter(sample_rows), 0))
 
 
+def test_split_by_count_negative_chunk_size(sample_rows):
+    with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+        list(split_by_count(iter(sample_rows), -5))
+
+
 def test_split_by_count_preserves_row_data(sample_rows):
     chunks = list(split_by_count(iter(sample_rows), 3))
     assert chunks[0][0]["name"] == "Alice"
     assert chunks[1][0]["name"] == "Dave"
+
+
+def test_split_by_count_total_rows_preserved(sample_rows):
+    """Ensure no rows are lost or duplicated across all chunks."""
+    chunks = list(split_by_count(iter(sample_rows), 2))
+    all_rows = [row for chunk in chunks for row in chunk]
+    assert all_rows == sample_rows
 
 
 # --- split_by_column ---
