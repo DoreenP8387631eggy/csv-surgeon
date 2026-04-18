@@ -36,6 +36,11 @@ def test_sample_first_n_zero(sample_rows):
     assert result == []
 
 
+def test_sample_first_n_empty_stream():
+    result = sample_first_n(iter([]), 5)
+    assert result == []
+
+
 # --- sample_random ---
 
 def test_sample_random_returns_correct_count(sample_rows):
@@ -60,6 +65,11 @@ def test_sample_random_larger_than_stream(sample_rows):
     assert len(result) == len(sample_rows)
 
 
+def test_sample_random_empty_stream():
+    result = sample_random(iter([]), 5, seed=42)
+    assert result == []
+
+
 # --- sample_every_nth ---
 
 def test_sample_every_nth_basic(sample_rows):
@@ -82,6 +92,12 @@ def test_sample_every_nth_invalid_n():
 def test_sample_every_nth_invalid_offset():
     with pytest.raises(ValueError):
         list(sample_every_nth(iter([]), 3, offset=3))
+
+
+def test_sample_every_nth_n_of_one(sample_rows):
+    """n=1 should return every row."""
+    result = list(sample_every_nth(iter(sample_rows), 1))
+    assert result == sample_rows
 
 
 # --- sample_percentage ---
