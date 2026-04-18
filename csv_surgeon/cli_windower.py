@@ -30,6 +30,11 @@ def cmd_window(args: argparse.Namespace) -> None:
     if first is None:
         return
 
+    # Validate that the specified column exists in the input
+    if col not in first:
+        print(f"Error: column '{col}' not found in input. Available columns: {', '.join(first.keys())}", file=sys.stderr)
+        sys.exit(1)
+
     writer = csv.DictWriter(args.output, fieldnames=list(first.keys()))
     writer.writeheader()
     writer.writerow(first)
