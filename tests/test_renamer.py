@@ -41,6 +41,20 @@ def test_rename_columns_empty_rows():
     assert result == []
 
 
+def test_rename_columns_old_key_removed(sample_rows):
+    """Ensure the original key is not present after renaming."""
+    mapping = {"first_name": "given_name"}
+    result = list(rename_columns(iter(sample_rows), mapping))
+    assert "first_name" not in result[0]
+
+
+def test_rename_columns_all_rows_renamed(sample_rows):
+    """Ensure renaming applies to every row, not just the first."""
+    mapping = {"first_name": "given_name"}
+    result = list(rename_columns(iter(sample_rows), mapping))
+    assert all("given_name" in row and "first_name" not in row for row in result)
+
+
 def test_prefix_columns_adds_prefix(sample_rows):
     result = list(prefix_columns(iter(sample_rows), "col_"))
     assert "col_first_name" in result[0]
