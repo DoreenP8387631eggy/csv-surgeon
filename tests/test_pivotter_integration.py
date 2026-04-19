@@ -13,21 +13,24 @@ def original_rows():
     ]
 
 
-def test_pivot_produces_two_rows(original_rows):
-    result = pivot_rows(original_rows, "region", "product", "sales")
-    assert len(result) == 2
+@pytest.fixture
+def pivoted_rows(original_rows):
+    """Return the pivoted form of original_rows for reuse across tests."""
+    return pivot_rows(original_rows, "region", "product", "sales")
 
 
-def test_pivot_then_melt_restores_row_count(original_rows):
-    pivoted = pivot_rows(iter(original_rows), "region", "product", "sales")
-    melted = list(melt_rows(iter(pivoted), id_cols=["region"], value_cols=["apples", "bananas"],
+def test_pivot_produces_two_rows(pivoted_rows):
+    assert len(pivoted_rows) == 2
+
+
+def test_pivot_then_melt_restores_row_count(original_rows, pivoted_rows):
+    melted = list(melt_rows(iter(pivoted_rows), id_cols=["region"], value_cols=["apples", "bananas"],
                             var_name="product", value_name="sales"))
     assert len(melted) == len(original_rows)
 
 
-def test_pivot_then_melt_restores_values(original_rows):
-    pivoted = pivot_rows(iter(original_rows), "region", "product", "sales")
-    melted = list(melt_rows(iter(pivoted), id_cols=["region"], value_cols=["apples", "bananas"],
+def test_pivot_then_melt_restores_values(pivoted_rows):
+    melted = list(melt_rows(iter(pivoted_rows), id_cols=["region"], value_cols=["apples", "bananas"],
                             var_name="product", value_name="sales"))
     north_apples = next(
         r for r in melted if r["region"] == "north" and r["product"] == "apples"
@@ -35,9 +38,8 @@ def test_pivot_then_melt_restores_values(original_rows):
     assert north_apples["sales"] == "100"
 
 
-def test_melt_variable_column_contains_original_headers(original_rows):
-    pivoted = pivot_rows(iter(original_rows), "region", "product", "sales")
-    melted = list(melt_rows(iter(pivoted), id_cols=["region"], value_cols=["apples", "bananas"],
+def test_melt_variable_column_contains_original_headers(pivoted_rows):
+    melted = list(melt_rows(iter(pivoted_rows), id_cols=["region"], value_cols=["apples", "bananas"],
                             var_name="product", value_name="sales"))
     products = {r["product"] for r in melted}
     assert products == {"apples", "bananas"}
