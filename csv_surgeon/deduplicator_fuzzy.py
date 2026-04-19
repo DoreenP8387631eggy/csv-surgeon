@@ -29,7 +29,18 @@ def fuzzy_deduplicate(
 
     Compares the concatenated values of *columns* using Jaccard similarity.
     Rows whose similarity to any retained row exceeds *threshold* are dropped.
+
+    Args:
+        rows: Iterable of row dicts.
+        columns: Column names whose values form the comparison signature.
+        threshold: Similarity score at or above which a row is considered a
+            duplicate and dropped.  Must be in the range (0.0, 1.0].
+
+    Raises:
+        ValueError: If *threshold* is not in the range (0.0, 1.0].
     """
+    if not 0.0 < threshold <= 1.0:
+        raise ValueError(f"threshold must be in (0.0, 1.0], got {threshold!r}")
     seen: list[str] = []
     for row in rows:
         sig = _row_signature(row, columns)
@@ -48,7 +59,18 @@ def fuzzy_deduplicate_sorted(
 
     Suitable for pre-sorted streams where near-duplicates are adjacent.
     Much more memory-efficient than fuzzy_deduplicate for large datasets.
+
+    Args:
+        rows: Iterable of row dicts.
+        columns: Column names whose values form the comparison signature.
+        threshold: Similarity score at or above which a row is considered a
+            duplicate and dropped.  Must be in the range (0.0, 1.0].
+
+    Raises:
+        ValueError: If *threshold* is not in the range (0.0, 1.0].
     """
+    if not 0.0 < threshold <= 1.0:
+        raise ValueError(f"threshold must be in (0.0, 1.0], got {threshold!r}")
     prev_sig: str | None = None
     for row in rows:
         sig = _row_signature(row, columns)
