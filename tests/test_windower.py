@@ -94,10 +94,16 @@ def test_lead_column_correct_values(sample_rows):
 
 def test_lead_column_periods_two(sample_rows):
     result = list(lead_column(iter(sample_rows), "val", periods=2))
-    assert result[0]["val_lead2"] == "30"
     assert result[-1]["val_lead2"] == ""
+    assert result[-2]["val_lead2"] == ""
+    assert result[0]["val_lead2"] == "30"
 
 
-def test_lead_column_preserves_original_fields(sample_rows):
-    result = list(lead_column(iter(sample_rows), "val"))
-    assert result[0]["id"] == "1"
+def test_lead_column_custom_output(sample_rows):
+    result = list(lead_column(iter(sample_rows), "val", output_column="next"))
+    assert "next" in result[0]
+
+
+def test_lead_column_invalid_periods(sample_rows):
+    with pytest.raises(ValueError):
+        list(lead_column(iter(sample_rows), "val", periods=0))
