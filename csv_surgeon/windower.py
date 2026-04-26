@@ -51,6 +51,30 @@ def rolling_sum(
     return rolling_window(rows, column, window_size, out_col, sum, fill)
 
 
+def rolling_max(
+    rows: Iterator[Dict[str, Any]],
+    column: str,
+    window_size: int,
+    output_column: Optional[str] = None,
+    fill: str = "",
+) -> Iterator[Dict[str, Any]]:
+    """Add a column with the maximum value over a rolling window of `column`."""
+    out_col = output_column or f"{column}_rolling_max"
+    return rolling_window(rows, column, window_size, out_col, max, fill)
+
+
+def rolling_min(
+    rows: Iterator[Dict[str, Any]],
+    column: str,
+    window_size: int,
+    output_column: Optional[str] = None,
+    fill: str = "",
+) -> Iterator[Dict[str, Any]]:
+    """Add a column with the minimum value over a rolling window of `column`."""
+    out_col = output_column or f"{column}_rolling_min"
+    return rolling_window(rows, column, window_size, out_col, min, fill)
+
+
 def lag_column(
     rows: Iterator[Dict[str, Any]],
     column: str,
